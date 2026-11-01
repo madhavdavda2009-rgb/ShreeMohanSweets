@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { updateOrderStatus } from "@/app/actions/admin";
-import { query } from "@/lib/db";
-import type { Order } from "@/lib/orders";
+import { requireAdmin } from "@/lib/auth";
+import { formatDateTime, orderPath } from "@/lib/orders";
 import { formatRupees } from "@/lib/pricing";
-import { orderToken, requireAdmin } from "@/lib/session";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function AdminOrdersPage() {
   await requireAdmin();
-  const [orders, items] = await Promise.all([
-    query<Order>("SELECT * FROM orders ORDER BY id DESC LIMIT 200"),
-    query<{ order_id: number; name: string; quantity: number; weight: string | null }>(
-      `SELECT oi.order_id, p.name, oi.quantity, oi.weight FROM order_items oi JOIN products p ON p.id = oi.product_id`,
-    ),
-  ]);
+  const supabase = await sessionClient();
+  const { data: orders, error } = await supabase
+    .from("orders")
+    .select("*, order_items(id, quantity, weight, products(name))")
+    .order("id", { ascending: false })
+    .limit(200);
+  if (error) throw error;
 
   return (
     <>
@@ -36,7 +37,7 @@ export default async function AdminOrdersPage() {
               {orders.map((order) => (
                 <tr key={order.id}>
                   <td>
-                    <Link href={`/invoice/${order.id}?t=${orderToken(order.id)}`} target="_blank" className="font-semibold text-rani underline">
+                    <Link href={orderPath(order, "invoice")} target="_blank" className="font-semibold text-rani underline">
                       #{order.id}
                     </Link>
                   </td>
@@ -48,14 +49,12 @@ export default async function AdminOrdersPage() {
                     <span className="block max-w-56 text-xs text-muted">{order.address}</span>
                   </td>
                   <td>
-                    {items
-                      .filter((item) => item.order_id === order.id)
-                      .map((item, index) => (
-                        <span key={index} className="block">
-                          {item.name}
-                          {item.weight ? `, ${item.weight}` : ""} x {item.quantity}
-                        </span>
-                      ))}
+                    {order.order_items.map((item) => (
+                      <span key={item.id} className="block">
+                        {item.products.name}
+                        {item.weight ? `, ${item.weight}` : ""} x {item.quantity}
+                      </span>
+                    ))}
                   </td>
                   <td>
                     {formatRupees(Number(order.total_amount))}
@@ -74,7 +73,7 @@ export default async function AdminOrdersPage() {
                       </button>
                     </form>
                   </td>
-                  <td className="whitespace-nowrap">{order.created_at}</td>
+                  <td className="whitespace-nowrap">{formatDateTime(order.created_at)}</td>
                 </tr>
               ))}
             </tbody>

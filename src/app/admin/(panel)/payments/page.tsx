@@ -1,20 +1,18 @@
 import { togglePayment } from "@/app/actions/admin";
-import { query } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
+import { formatDateTime } from "@/lib/orders";
 import { formatRupees } from "@/lib/pricing";
-import { requireAdmin } from "@/lib/session";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function PaymentsPage() {
   await requireAdmin();
-  const payments = await query<{
-    id: number;
-    order_id: number;
-    customer_name: string;
-    amount: number;
-    method: string;
-    status: string;
-    created_at: string;
-  }>(`SELECT p.id, p.order_id, o.customer_name, p.amount, p.method, p.status, p.created_at
-      FROM payments p JOIN orders o ON p.order_id = o.id ORDER BY p.id DESC LIMIT 200`);
+  const supabase = await sessionClient();
+  const { data: payments, error } = await supabase
+    .from("payments")
+    .select("id, order_id, amount, method, status, created_at, orders(customer_name)")
+    .order("id", { ascending: false })
+    .limit(200);
+  if (error) throw error;
 
   return (
     <>
@@ -38,19 +36,20 @@ export default async function PaymentsPage() {
               {payments.map((payment) => (
                 <tr key={payment.id}>
                   <td>#{payment.order_id}</td>
-                  <td>{payment.customer_name}</td>
+                  <td>{payment.orders.customer_name}</td>
                   <td>{formatRupees(Number(payment.amount))}</td>
                   <td>{payment.method}</td>
                   <td>
                     <form action={togglePayment} className="flex items-center gap-2">
                       <input type="hidden" name="id" value={payment.id} />
+                      <input type="hidden" name="status" value={payment.status} />
                       <span>{payment.status}</span>
                       <button type="submit" className="text-sm font-semibold text-rani underline">
                         {payment.status === "Pending" ? "Mark received" : "Undo"}
                       </button>
                     </form>
                   </td>
-                  <td className="whitespace-nowrap">{payment.created_at}</td>
+                  <td className="whitespace-nowrap">{formatDateTime(payment.created_at)}</td>
                 </tr>
               ))}
             </tbody>

@@ -3,10 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { PrintButton } from "@/components/print-button";
-import { query } from "@/lib/db";
-import { getOrder, getOrderItems } from "@/lib/orders";
+import { formatDate, formatTime, getOrder } from "@/lib/orders";
 import { deliveryPolicy, site } from "@/lib/site";
-import { isAdmin, isValidOrderToken } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Invoice", robots: { index: false } };
 
@@ -25,14 +23,13 @@ export default function InvoicePage(props: Props) {
 async function Invoice({ params, searchParams }: Props) {
   const id = Number((await params).id);
   const { t } = await searchParams;
-  const order = Number.isInteger(id) ? await getOrder(id) : null;
-  if (!order || !(isValidOrderToken(id, t) || (await isAdmin()))) notFound();
+  const order = await getOrder(id, t);
+  if (!order) notFound();
 
-  const items = await getOrderItems(id);
-  const [{ bill_no }] = await query<{ bill_no: number }>("SELECT COUNT(*) AS bill_no FROM orders WHERE id <= ?", [id]);
+  const items = order.items;
+  const bill_no = order.bill_no;
   const subtotal = items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const total = Number(order.total_amount);
-  const [date, time] = order.created_at.split(" ");
 
   return (
     <div className="mx-auto max-w-3xl bg-white p-6 sm:my-8 sm:rounded-[var(--radius-soft)] sm:p-10 print:my-0 print:max-w-none print:p-0">
@@ -49,8 +46,8 @@ async function Invoice({ params, searchParams }: Props) {
           <p className="font-display text-2xl font-extrabold text-rani">Invoice</p>
           <p className="mt-1">Bill No: {bill_no}</p>
           <p>Invoice: #{order.id}</p>
-          <p>Date: {date.split("-").reverse().join("-")}</p>
-          <p>Time: {time}</p>
+          <p>Date: {formatDate(order.created_at)}</p>
+          <p>Time: {formatTime(order.created_at)}</p>
           <p>Status: {order.status}</p>
           <p>Payment: {order.payment_method}</p>
         </div>

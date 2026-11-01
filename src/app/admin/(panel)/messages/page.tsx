@@ -1,11 +1,16 @@
-import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/auth";
+import { formatDateTime } from "@/lib/orders";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function MessagesPage() {
   await requireAdmin();
-  const messages = await query<{ id: number; name: string; email: string; message: string; created_at: string }>(
-    "SELECT id, name, email, message, created_at FROM contact_messages ORDER BY id DESC LIMIT 200",
-  );
+  const supabase = await sessionClient();
+  const { data: messages, error } = await supabase
+    .from("contact_messages")
+    .select("id, name, email, message, created_at")
+    .order("id", { ascending: false })
+    .limit(200);
+  if (error) throw error;
 
   return (
     <>
@@ -20,7 +25,7 @@ export default async function MessagesPage() {
                 {message.email}
               </a>
             </p>
-            <p className="text-sm text-muted">{message.created_at}</p>
+            <p className="text-sm text-muted">{formatDateTime(message.created_at)}</p>
             <p className="mt-2 whitespace-pre-wrap">{message.message}</p>
           </li>
         ))}

@@ -63,18 +63,20 @@ export function HeroStage({ photo, children }: { photo: ReactNode; children: Rea
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const pan = useTransform(scrollYProgress, [0, 1], [0.06, reduce ? 0.06 : 1]);
+  // The copy clears away so the entrance is seen unobstructed at the end of the pan.
+  const copy = useTransform(scrollYProgress, [0.2, 0.55], [1, reduce ? 1 : 0]);
   return (
     <section ref={ref} className="relative bg-plum lg:h-[180dvh]">
-      <div className="relative flex items-start overflow-hidden md:min-h-[calc(100dvh-80px)] md:items-end lg:sticky lg:top-0 lg:h-dvh">
-        <motion.div
-          style={{ "--pan": pan } as unknown as MotionStyle}
-          className="absolute inset-x-0 top-0 aspect-square md:inset-0 md:aspect-auto lg:bottom-auto lg:aspect-square lg:min-h-full lg:[transform:translateY(calc(var(--pan)*min(0px,100dvh-100%)))]"
-        >
+      <motion.div
+        style={{ "--pan": pan, "--copy": copy } as unknown as MotionStyle}
+        className="relative flex items-start overflow-hidden md:min-h-[calc(100dvh-80px)] md:items-end lg:sticky lg:top-0 lg:h-dvh"
+      >
+        <div className="absolute inset-x-0 top-0 aspect-square md:inset-0 md:aspect-auto lg:bottom-auto lg:aspect-square lg:min-h-full lg:[transform:translateY(calc(var(--pan)*min(0px,100dvh-100%)))]">
           {photo}
-        </motion.div>
-        <div aria-hidden className="hero-scrim absolute inset-0" />
-        {children}
-      </div>
+        </div>
+        <div aria-hidden className="hero-scrim absolute inset-0 lg:opacity-(--copy)" />
+        <div className="relative w-full lg:opacity-(--copy)">{children}</div>
+      </motion.div>
     </section>
   );
 }

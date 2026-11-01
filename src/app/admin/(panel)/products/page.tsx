@@ -1,28 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { deleteProduct } from "@/app/actions/admin";
-import { query } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { productImageUrl } from "@/lib/images";
 import { formatRupees } from "@/lib/pricing";
-import { requireAdmin } from "@/lib/session";
-
-type Row = {
-  id: number;
-  name: string;
-  price: number;
-  image: string | null;
-  category: string | null;
-  featured: number;
-  stock_quantity: number;
-  stock_status: string | null;
-};
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function AdminProductsPage() {
   await requireAdmin();
-  const products = await query<Row>(`
-    SELECT p.id, p.name, p.price, p.image, c.name AS category, p.featured, p.stock_quantity, p.stock_status
-    FROM products p LEFT JOIN categories c ON p.category_id = c.id
-    ORDER BY p.price = 0 DESC, p.name`);
+  const supabase = await sessionClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, name, price, image, featured, stock_quantity, stock_status, categories(name)")
+    .order("name");
+  if (error) throw error;
+  // Products still missing a price come first, so they are easy to work through.
+  const products = data.sort((a, b) => Number(b.price === 0) - Number(a.price === 0));
 
   return (
     <>
@@ -56,7 +49,7 @@ export default async function AdminProductsPage() {
                     </div>
                   </td>
                   <td className="font-medium">{product.name}</td>
-                  <td>{product.category ?? "Uncategorized"}</td>
+                  <td>{product.categories?.name ?? "Uncategorized"}</td>
                   <td>
                     {Number(product.price) > 0 ? (
                       formatRupees(Number(product.price))

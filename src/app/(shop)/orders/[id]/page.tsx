@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { getOrder, getOrderItems } from "@/lib/orders";
+import { getOrder, orderPath } from "@/lib/orders";
 import { formatRupees } from "@/lib/pricing";
-import { getCustomer, isAdmin, isValidOrderToken, orderToken } from "@/lib/session";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
@@ -18,15 +17,10 @@ export default async function OrderPage({
 }) {
   const id = Number((await params).id);
   const { t } = await searchParams;
-  const order = Number.isInteger(id) ? await getOrder(id) : null;
+  const order = await getOrder(id, t);
   if (!order) notFound();
 
-  const customer = await getCustomer();
-  const allowed =
-    isValidOrderToken(id, t) || (customer && customer.id === order.customer_id) || (await isAdmin());
-  if (!allowed) notFound();
-
-  const items = await getOrderItems(id);
+  const items = order.items;
   const total = Number(order.total_amount);
   const payByUpi = order.payment_method === "UPI" && order.status === "Pending";
   const upiLink = `upi://pay?${new URLSearchParams({
@@ -65,7 +59,7 @@ export default async function OrderPage({
           </p>
           <p className="mt-4 text-muted">{order.address}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href={`/invoice/${id}?t=${orderToken(id)}`} target="_blank" className="btn-secondary">
+            <Link href={orderPath(order, "invoice")} target="_blank" className="btn-secondary">
               View Invoice
             </Link>
             <a href={`${site.whatsapp}?text=${whatsappText}`} target="_blank" rel="noreferrer" className="btn-green">

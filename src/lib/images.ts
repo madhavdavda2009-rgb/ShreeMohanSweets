@@ -1,27 +1,19 @@
 import "server-only";
-import { readdirSync } from "node:fs";
-import path from "node:path";
+import productImages from "./product-images.json";
+import { IMAGE_BUCKET, SUPABASE_URL } from "./supabase/config";
 
 export const UPLOAD_PREFIX = "uploads/";
 
-let bundled: Set<string> | undefined;
+// Written by scripts/prepare-images.mjs. public/ is not on disk on serverless hosts.
+const bundledImages = new Set(productImages);
 
-function bundledImages() {
-  if (!bundled) {
-    bundled = new Set(readdirSync(path.join(process.cwd(), "public/products")));
-  }
-  return bundled;
-}
-
-export function uploadDir() {
-  return path.resolve(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR ?? "./storage/uploads");
-}
-
-// Database values are either legacy filenames ("Kaju_Katli.jpg"), which map onto the
-// converted files in public/products, or "uploads/..." for images added in the admin.
+// Database values are either catalogue filenames ("Kaju_Katli.jpg"), which map onto the
+// files in public/products, or "uploads/..." for images added in the admin panel.
 export function productImageUrl(image: string | null) {
   if (!image) return null;
-  if (image.startsWith(UPLOAD_PREFIX)) return `/media/${image.slice(UPLOAD_PREFIX.length)}`;
+  if (image.startsWith(UPLOAD_PREFIX)) {
+    return `${SUPABASE_URL}/storage/v1/object/public/${IMAGE_BUCKET}/${image.slice(UPLOAD_PREFIX.length)}`;
+  }
   const slug = image
     .trim()
     .replace(/(\.(jpe?g|png|gif|webp))+$/i, "")
@@ -29,5 +21,5 @@ export function productImageUrl(image: string | null) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
   const file = `${slug}.webp`;
-  return bundledImages().has(file) ? `/products/${file}` : null;
+  return bundledImages.has(file) ? `/products/${file}` : null;
 }

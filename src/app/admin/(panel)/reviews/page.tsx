@@ -1,13 +1,16 @@
 import { deleteReview } from "@/app/actions/admin";
 import { ReviewForm } from "@/components/admin-forms";
-import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/auth";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function ReviewsPage() {
   await requireAdmin();
-  const reviews = await query<{ id: number; customer_name: string; rating: number; review_text: string }>(
-    "SELECT id, customer_name, rating, review_text FROM reviews ORDER BY id DESC",
-  );
+  const supabase = await sessionClient();
+  const { data: reviews, error } = await supabase
+    .from("reviews")
+    .select("id, customer_name, rating, review_text")
+    .order("id", { ascending: false });
+  if (error) throw error;
 
   return (
     <>

@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { logout } from "@/app/actions/auth";
-import { getCustomerOrders } from "@/lib/orders";
+import { requireCustomer } from "@/lib/auth";
+import { orderPath } from "@/lib/orders";
 import { formatRupees } from "@/lib/pricing";
-import { orderToken, requireCustomer } from "@/lib/session";
+import { sessionClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "My Orders", robots: { index: false } };
 
 export default async function MyOrdersPage() {
   const customer = await requireCustomer();
-  const orders = await getCustomerOrders(customer.id);
+  const supabase = await sessionClient();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, total_amount, payment_method, status, access_token")
+    .eq("customer_id", customer.id)
+    .order("id", { ascending: false });
+  if (error) throw error;
+  const orders = data;
 
   return (
     <div className="page max-w-4xl py-10 md:py-14">
@@ -37,7 +45,7 @@ export default async function MyOrdersPage() {
           {orders.map((order) => (
             <li key={order.id}>
               <Link
-                href={`/orders/${order.id}?t=${orderToken(order.id)}`}
+                href={orderPath(order)}
                 className="grid grid-cols-[1fr_auto] items-center gap-x-4 rounded-[var(--radius-soft)] bg-blush px-5 py-4 transition hover:bg-[#fbdfd7]"
               >
                 <span className="font-display text-xl font-bold">Order #{order.id}</span>

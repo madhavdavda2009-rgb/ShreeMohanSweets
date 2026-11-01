@@ -9,7 +9,7 @@ type Values = {
   name: string;
   price: number;
   category_id: number | null;
-  featured: number;
+  featured: boolean;
   stock_quantity: number;
   stock_status: string | null;
 };

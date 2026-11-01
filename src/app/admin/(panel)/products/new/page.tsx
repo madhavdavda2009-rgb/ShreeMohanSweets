@@ -1,10 +1,12 @@
 import { ProductForm } from "@/components/product-form";
-import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/auth";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function NewProductPage() {
   await requireAdmin();
-  const categories = await query<{ id: number; name: string }>("SELECT id, name FROM categories ORDER BY id");
+  const supabase = await sessionClient();
+  const { data: categories, error } = await supabase.from("categories").select("id, name").order("id");
+  if (error) throw error;
   return (
     <>
       <h1 className="heading text-4xl">Add product</h1>

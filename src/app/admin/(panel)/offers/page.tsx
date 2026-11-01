@@ -1,17 +1,16 @@
 import { deleteOffer, toggleOffer } from "@/app/actions/admin";
 import { OfferForm } from "@/components/admin-forms";
-import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/session";
+import { requireAdmin } from "@/lib/auth";
+import { sessionClient } from "@/lib/supabase/server";
 
 export default async function OffersPage() {
   await requireAdmin();
-  const offers = await query<{
-    id: number;
-    description: string;
-    start_date: string;
-    end_date: string;
-    active: number;
-  }>("SELECT id, description, start_date, end_date, active FROM offers ORDER BY id DESC");
+  const supabase = await sessionClient();
+  const { data: offers, error } = await supabase
+    .from("offers")
+    .select("id, description, start_date, end_date, active")
+    .order("id", { ascending: false });
+  if (error) throw error;
 
   return (
     <>
@@ -40,6 +39,7 @@ export default async function OffersPage() {
                   <div className="flex gap-3">
                     <form action={toggleOffer}>
                       <input type="hidden" name="id" value={offer.id} />
+                      <input type="hidden" name="active" value={String(offer.active)} />
                       <button type="submit" className="font-semibold text-rani underline">
                         {offer.active ? "Deactivate" : "Activate"}
                       </button>

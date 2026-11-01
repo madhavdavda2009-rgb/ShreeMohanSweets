@@ -17,7 +17,12 @@ const body = Mukta_Vaani({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ??
+      (process.env.VERCEL_PROJECT_PRODUCTION_URL
+        ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+        : "http://localhost:3000"),
+  ),
   title: { default: `${site.name} | Paldi, Ahmedabad`, template: `%s | ${site.name}` },
   description:
     "Sweets, farsan and namkeen made fresh every day in Paldi, Ahmedabad, since 1979. Order fafda, jalebi, kaju katli and more online.",

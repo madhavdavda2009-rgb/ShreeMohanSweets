@@ -2,7 +2,7 @@
 // Product output names are derived from the source filename, so image values already
 // stored in the database keep working (see src/lib/images.ts).
 import { existsSync } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -37,5 +37,8 @@ await sharp(path.join(ROOT, "assets-src/shop-front-instagram.webp"))
   .resize({ width: 1920, kernel: "lanczos3" })
   .webp({ quality: 86 })
   .toFile(path.join(PHOTOS_OUT, "shop-front-2026.webp"));
+
+const published = (await readdir(PRODUCTS_OUT)).filter((file) => file.endsWith(".webp")).sort();
+await writeFile(path.join(ROOT, "src/lib/product-images.json"), `${JSON.stringify(published, null, 2)}\n`);
 
 console.log(`${sources.length} product images and 1 photo written`);

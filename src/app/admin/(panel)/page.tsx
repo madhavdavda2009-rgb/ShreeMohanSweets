@@ -1,21 +1,21 @@
 import Link from "next/link";
-import { query } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth";
 import { formatRupees } from "@/lib/pricing";
-import { requireAdmin } from "@/lib/session";
+import { sessionClient } from "@/lib/supabase/server";
+
+type Stats = { products: number; unpriced: number; orders: number; pending: number; revenue: number };
 
 export default async function DashboardPage() {
   await requireAdmin();
-  const [[stats], lowStock, unpriced] = await Promise.all([
-    query<{ products: number; orders: number; pending: number; revenue: number }>(`
-      SELECT (SELECT COUNT(*) FROM products) AS products,
-             (SELECT COUNT(*) FROM orders) AS orders,
-             (SELECT COUNT(*) FROM orders WHERE status = 'Pending') AS pending,
-             (SELECT COALESCE(SUM(total_amount), 0) FROM orders) AS revenue`),
-    query<{ id: number; name: string; stock_quantity: number }>(
-      "SELECT id, name, stock_quantity FROM products WHERE stock_quantity <= 5 ORDER BY stock_quantity LIMIT 12",
-    ),
-    query<{ total: number }>("SELECT COUNT(*) AS total FROM products WHERE price = 0"),
+  const supabase = await sessionClient();
+  const [statsResult, lowStockResult] = await Promise.all([
+    supabase.rpc("dashboard_stats"),
+    supabase.from("products").select("id, name, stock_quantity").lte("stock_quantity", 5).order("stock_quantity").limit(12),
   ]);
+  if (statsResult.error) throw statsResult.error;
+  if (lowStockResult.error) throw lowStockResult.error;
+  const stats = statsResult.data as unknown as Stats;
+  const lowStock = lowStockResult.data;
 
   const cards = [
     { label: "Products", value: stats.products, href: "/admin/products" },
@@ -36,9 +36,9 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {unpriced[0].total > 0 && (
+      {stats.unpriced > 0 && (
         <p className="notice-error mt-6">
-          {unpriced[0].total} products have no price and show &quot;Ask price on WhatsApp&quot;.{" "}
+          {stats.unpriced} products have no price and show &quot;Ask price on WhatsApp&quot;.{" "}
           <Link href="/admin/products" className="underline">
             Set prices
           </Link>

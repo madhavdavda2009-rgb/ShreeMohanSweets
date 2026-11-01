@@ -1,15 +1,10 @@
 "use server";
 
-import bcrypt from "bcryptjs";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { execute, query } from "@/lib/db";
-import {
-  endAdminSession,
-  endCustomerSession,
-  startAdminSession,
-  startCustomerSession,
-} from "@/lib/session";
+import { isAdmin } from "@/lib/auth";
+import { sessionClient } from "@/lib/supabase/server";
 import type { FormState } from "./shop";
 
 const registerSchema = z.object({
@@ -29,55 +24,60 @@ export async function register(_: FormState, form: FormData): Promise<FormState>
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   const { name, phone, email, password } = parsed.data;
-  const existing = await query("SELECT id FROM customers WHERE email = ?", [email]);
-  if (existing.length > 0) return { error: "An account with this email already exists." };
-
-  const result = await execute("INSERT INTO customers (name, phone, email, password) VALUES (?, ?, ?, ?)", [
-    name,
-    phone,
+  const origin = (await headers()).get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL;
+  const supabase = await sessionClient();
+  const { data, error } = await supabase.auth.signUp({
     email,
-    await bcrypt.hash(password, 12),
-  ]);
-  await startCustomerSession({ id: result.insertId, name });
+    password,
+    options: { data: { name, phone }, emailRedirectTo: `${origin}/auth/callback` },
+  });
+  if (error) return { error: error.message };
+
+  // With email confirmation on, there is no session until the link is opened.
+  if (!data.session) return { success: "Almost done. Please open the link we emailed you to confirm your account." };
   redirect("/account/orders");
 }
 
 export async function login(_: FormState, form: FormData): Promise<FormState> {
-  const email = String(form.get("email") ?? "").trim();
-  const password = String(form.get("password") ?? "");
-  const rows = await query<{ id: number; name: string; password: string }>(
-    "SELECT id, name, password FROM customers WHERE email = ?",
-    [email],
-  );
-  const customer = rows[0];
-  // bcryptjs reads the $2y$ hashes written by PHP, so existing accounts keep working.
-  if (!customer || !(await bcrypt.compare(password, customer.password))) {
-    return { error: "Invalid email or password." };
+  const supabase = await sessionClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: String(form.get("email") ?? "").trim(),
+    password: String(form.get("password") ?? ""),
+  });
+  if (error) {
+    return {
+      error:
+        error.code === "email_not_confirmed"
+          ? "Please open the link we emailed you to confirm your account."
+          : "Invalid email or password.",
+    };
   }
-  await startCustomerSession({ id: customer.id, name: customer.name });
   redirect("/account/orders");
 }
 
 export async function logout() {
-  await endCustomerSession();
+  const supabase = await sessionClient();
+  await supabase.auth.signOut();
   redirect("/");
 }
 
 export async function adminLogin(_: FormState, form: FormData): Promise<FormState> {
-  const email = String(form.get("email") ?? "").trim().toLowerCase();
-  const password = String(form.get("password") ?? "");
-  const expectedEmail = process.env.ADMIN_EMAIL?.toLowerCase();
-  const hash = Buffer.from(process.env.ADMIN_PASSWORD_HASH ?? "", "base64").toString();
-  if (!expectedEmail || !hash) return { error: "Admin login is not configured on this server." };
-
-  const passwordMatches = await bcrypt.compare(password, hash);
-  if (email !== expectedEmail || !passwordMatches) return { error: "Invalid email or password." };
-
-  await startAdminSession();
+  const supabase = await sessionClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: String(form.get("email") ?? "").trim(),
+    password: String(form.get("password") ?? ""),
+  });
+  if (error || data.user.app_metadata?.role !== "admin") {
+    if (!error) await supabase.auth.signOut();
+    return { error: "Invalid email or password." };
+  }
   redirect("/admin");
 }
 
 export async function adminLogout() {
-  await endAdminSession();
+  if (await isAdmin()) {
+    const supabase = await sessionClient();
+    await supabase.auth.signOut();
+  }
   redirect("/admin/login");
 }
