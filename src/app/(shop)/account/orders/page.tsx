@@ -26,11 +26,16 @@ export default async function MyOrdersPage() {
           <p className="font-semibold text-mor">Hi, {customer.name}</p>
           <h1 className="heading text-5xl md:text-6xl">My orders</h1>
         </div>
-        <form action={logout}>
-          <button type="submit" className="font-semibold text-muted underline underline-offset-4 hover:text-rani">
-            Logout
-          </button>
-        </form>
+        <div className="flex items-center gap-4">
+          <Link href="/account/password" className="font-semibold text-muted underline underline-offset-4 hover:text-rani">
+            Change password
+          </Link>
+          <form action={logout}>
+            <button type="submit" className="font-semibold text-muted underline underline-offset-4 hover:text-rani">
+              Logout
+            </button>
+          </form>
+        </div>
       </div>
 
       {orders.length === 0 ? (

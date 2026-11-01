@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, requireCustomer } from "@/lib/auth";
 import { sessionClient } from "@/lib/supabase/server";
 import type { FormState } from "./shop";
 
@@ -53,6 +53,16 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
     };
   }
   redirect("/account/orders");
+}
+
+export async function changePassword(_: FormState, form: FormData): Promise<FormState> {
+  await requireCustomer();
+  const password = String(form.get("password") ?? "");
+  if (password.length < 8 || password.length > 72) return { error: "Password must be at least 8 characters." };
+  const supabase = await sessionClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+  return { success: "Your password has been changed." };
 }
 
 export async function logout() {

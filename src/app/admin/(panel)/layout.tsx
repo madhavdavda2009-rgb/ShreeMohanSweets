@@ -29,6 +29,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Link>
             ))}
           </nav>
+          <Link href="/account/password" className="text-sm font-medium underline">
+            Change password
+          </Link>
           <form action={adminLogout}>
             <button type="submit" className="text-sm font-medium underline">
               Logout
